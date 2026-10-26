@@ -1,0 +1,24 @@
+============================================================
+  YOLO Dataset Validation Report
+============================================================
+  Positive slices inspected : 251
+  Negative slices total     : 1230
+  Boxes OK (in bounds)      : 251
+  Slices with warnings      : 0
+
+  Generation config:
+    CT window : WL=40 HU, WW=80 HU
+    Output sz : None
+    Seed      : 42
+
+  Per-split summary:
+    [train]  patients=42  slices=1038  pos=200  neg=838  boxes=307
+    [val  ]  patients=9  slices=224  pos=33  neg=191  boxes=40
+    [test ]  patients=9  slices=219  pos=18  neg=201  boxes=20
+
+  Flagged volumes (affine/shape issues) : 0
+  Skipped volumes (missing files)       : 0
+
+  No geometry issues found -- all boxes are valid.
+
+============================================================
