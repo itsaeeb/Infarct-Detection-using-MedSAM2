@@ -11,9 +11,10 @@ Usage:
     python generate_yolo_labels.py
 
 Outputs (all under OUTPUT_ROOT):
-    yolo_dataset/
+    dataset/
         images/train/  images/val/  images/test/
         labels/train/  labels/val/  labels/test/
+        masks/train/   masks/val/   masks/test/
         dataset.yaml
 
 Design decisions (based on inspect_nifti.py results):
@@ -57,8 +58,9 @@ except ImportError:
 # =============================================================================
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-DATASET_ROOT = os.path.join(SCRIPT_DIR, "APIS_Dataset")
-OUTPUT_ROOT  = os.path.join(SCRIPT_DIR, "yolo_dataset")
+DATASET_ROOT = os.environ.get("DATASET_ROOT", os.path.join(SCRIPT_DIR, "APIS_Dataset"))
+OUTPUT_ROOT  = os.environ.get("OUTPUT_ROOT", os.path.join(SCRIPT_DIR, "dataset"))
+SAVE_MASKS   = True   # Save ground-truth binary infarct masks to masks/{train,val,test}/
 
 # CT brain window  (edit these to change the intensity window)
 WINDOW_LEVEL = 40    # HU  (centre)
@@ -96,6 +98,7 @@ def setup_logging(output_root):
             logging.StreamHandler(sys.stdout),
             logging.FileHandler(log_path, mode="w", encoding="utf-8"),
         ],
+        force=True,
     )
     return log_path
 
@@ -114,6 +117,10 @@ def collect_pairs(dataset_root):
     """Return sorted list of (pid, ncct_path, mask_path)."""
     pairs   = []
     skipped = []
+    if not os.path.isdir(dataset_root):
+        logging.error(f"Dataset root directory does not exist: {dataset_root}")
+        return pairs, skipped
+
     patient_dirs = sorted([
         d for d in os.listdir(dataset_root)
         if os.path.isdir(os.path.join(dataset_root, d)) and d.startswith("train_")
@@ -228,7 +235,7 @@ def save_label(yolo_lines, out_path):
 def make_dataset_yaml(output_root, class_names):
     """Write the YOLO dataset.yaml configuration file."""
     # Use forward slashes for YOLO compatibility
-    abs_root = output_root.replace("\\", "/")
+    abs_root = os.path.abspath(output_root).replace("\\", "/")
     yaml_path = os.path.join(output_root, "dataset.yaml")
     lines = [
         f"path: {abs_root}",
@@ -254,12 +261,13 @@ def process_volume(pid, ncct_path, mask_path, split,
     Process one (ncct, mask) pair.
 
     Extracts axial slices, applies brain window, computes bounding boxes,
-    and saves images + labels.
+    and saves images + labels + ground-truth masks.
 
     Returns nothing; mutates 'stats' dict in-place.
     """
-    img_dir = os.path.join(output_root, "images", split)
-    lbl_dir = os.path.join(output_root, "labels", split)
+    img_dir  = os.path.join(output_root, "images", split)
+    lbl_dir  = os.path.join(output_root, "labels", split)
+    mask_dir = os.path.join(output_root, "masks", split) if SAVE_MASKS else None
 
     try:
         ct_img   = nib.load(ncct_path)
@@ -301,14 +309,20 @@ def process_volume(pid, ncct_path, mask_path, split,
 
         H, W = ct_slice.shape
 
-        # File name: patientid_slice{z:03d}
-        basename = f"{pid}_slice{z:03d}"
+        # File name: patientid_slice_###
+        basename = f"{pid}_slice_{z:03d}"
         img_path = os.path.join(img_dir, basename + ".png")
         lbl_path = os.path.join(lbl_dir, basename + ".txt")
 
         # Save image
         img_uint8 = slice_to_uint8(ct_slice)
         save_image(img_uint8, img_path, OUTPUT_SIZE)
+
+        # Save mask
+        if SAVE_MASKS and mask_dir is not None:
+            mask_uint8 = (mask_slice == 1).astype(np.uint8) * 255
+            mask_path = os.path.join(mask_dir, basename + "_mask.png")
+            save_image(mask_uint8, mask_path, OUTPUT_SIZE)
 
         # Compute bounding boxes
         boxes_px = get_boxes_from_mask_slice(mask_slice, infarct_label=1)
@@ -345,6 +359,8 @@ def main():
     for split in ("train", "val", "test"):
         os.makedirs(os.path.join(OUTPUT_ROOT, "images", split), exist_ok=True)
         os.makedirs(os.path.join(OUTPUT_ROOT, "labels", split), exist_ok=True)
+        if SAVE_MASKS:
+            os.makedirs(os.path.join(OUTPUT_ROOT, "masks", split), exist_ok=True)
 
     log_path = setup_logging(OUTPUT_ROOT)
     logging.info("=" * 60)
@@ -352,6 +368,7 @@ def main():
     logging.info("=" * 60)
     logging.info(f"  Dataset root : {DATASET_ROOT}")
     logging.info(f"  Output root  : {OUTPUT_ROOT}")
+    logging.info(f"  Save masks   : {SAVE_MASKS}")
     logging.info(f"  CT window    : WL={WINDOW_LEVEL} HU  WW={WINDOW_WIDTH} HU")
     logging.info(f"  Output size  : {OUTPUT_SIZE if OUTPUT_SIZE else 'original'}")
     logging.info(f"  Split ratios : train={TRAIN_RATIO}  val={VAL_RATIO}  test={TEST_RATIO}")
@@ -435,6 +452,7 @@ def main():
                 "val_ratio"    : VAL_RATIO,
                 "test_ratio"   : TEST_RATIO,
                 "random_seed"  : RANDOM_SEED,
+                "save_masks"   : SAVE_MASKS,
                 "class_id"     : CLASS_ID,
                 "class_name"   : "infarct",
                 "infarct_label": 1,

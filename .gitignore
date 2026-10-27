@@ -1,0 +1,18 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ultralytics & YOLO cache
+*.cache
+yolo26n.pt
+runs/**/weights/last.pt
+runs/**/train_batch*.jpg
+runs/**/val_batch*.jpg
+
+# Operating System
+Thumbs.db
+.DS_Store
+
+# Scratch and temp files
+*.tmp

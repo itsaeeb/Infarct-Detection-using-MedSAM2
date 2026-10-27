@@ -1,0 +1,8 @@
+# Balanced Ultralytics YOLO configuration for Brain Infarct Detection
+path: C:/project_cursor/SOP_anandSir/dataset
+train: train_balanced.txt
+val: images/val
+test: images/test
+
+names:
+  0: infarct
