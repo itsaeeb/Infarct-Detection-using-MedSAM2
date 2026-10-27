@@ -35,7 +35,7 @@ except ImportError:
 # =============================================================================
 
 SCRIPT_DIR      = os.path.dirname(os.path.abspath(__file__))
-YOLO_ROOT       = os.path.join(SCRIPT_DIR, "yolo_dataset")
+YOLO_ROOT       = os.environ.get("YOLO_ROOT", os.path.join(SCRIPT_DIR, "dataset"))
 VALIDATION_DIR  = os.path.join(SCRIPT_DIR, "validation_output")
 
 # How many negative-slice examples to save (set 0 to skip)

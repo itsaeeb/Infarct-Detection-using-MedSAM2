@@ -1,0 +1,17 @@
+{
+  "model": "C:\\project_cursor\\SOP_anand2\\yolo26n.pt",
+  "epochs": 25,
+  "imgsz": 512,
+  "batch": 16,
+  "device": "cpu",
+  "save_dir": "C:\\project_cursor\\SOP_anand2\\runs\\detect\\yolo26_infarct",
+  "best_weights": "C:\\project_cursor\\SOP_anand2\\runs\\detect\\yolo26_infarct\\weights\\best.pt",
+  "test_metrics": {
+    "precision": 0.0,
+    "sensitivity_recall": 0.0,
+    "f1_score": 0.0,
+    "map_50": 0.0,
+    "map_75": 0.0,
+    "map_50_95": 0.0
+  }
+}
