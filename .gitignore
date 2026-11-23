@@ -1,0 +1,58 @@
+# ==============================================================================
+# Git Ignore Configuration
+# Project: AI-Enabled Ischemic Stroke Infarct Detection and Segmentation
+# ==============================================================================
+
+# User-Specified Ignored Folders & Files
+phase_2_yolo26/
+phase_2_yolo26.zip
+MedSAM2/
+medsam how to use.md
+medsam how to use*
+
+# Datasets & Large Archives
+APIS_Dataset/
+apis_finetune_colab_pack.zip
+*.zip
+*.tar.gz
+*.nii
+*.nii.gz
+
+# Model Weights & Checkpoints (Heavy Binaries)
+*.pt
+*.pth
+*.onnx
+checkpoints/
+MEDSAM for infarct/checkpoints/*.pt
+MEDSAM for infarct/checkpoints/finetuned/*.pt
+
+# Python Bytecode & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# IDE & OS Specific Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Caches & Temporary Outputs
+.mplcache/
+MEDSAM for infarct/outputs/.mplcache/
+

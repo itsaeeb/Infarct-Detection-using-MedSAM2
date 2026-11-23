@@ -129,30 +129,31 @@ slice level) with a fixed random seed to prevent data leakage.  Ratios:
 
 ---
 
-### Stage 2 — YOLO Training and Inference 🔲 Planned
+### Stage 2 — YOLO26 Training, Evaluation, and Inference ✅ Implemented & Runnable
 
-**Purpose:** Train a YOLO object detector on the CT slice images and
-ground-truth bounding-box labels generated in Stage 1.
+**Purpose:** Fine-tune Ultralytics YOLO26 Nano (`yolo26n.pt`) on the windowed axial
+CT slices and ground-truth bounding-box labels generated in Stage 1, evaluate detection
+performance on the held-out test split, and run inference on new slices.
 
-**Planned inputs:**
-- `yolo_dataset/images/{train,val,test}/` — 8-bit grayscale PNG slices
-- `yolo_dataset/labels/{train,val,test}/` — YOLO `.txt` label files
-- `yolo_dataset/dataset.yaml` — dataset configuration
+**Model:**
+- Architecture: **Ultralytics YOLO26 Nano (`yolo26n.pt`)** (260 layers, 2.50M parameters, 5.9 GFLOPs)
+- Single-class object detection (`0: infarct`)
+- Pretrained weights downloaded and verified: `yolo26n.pt`
 
-**Planned steps:**
-1. Select a YOLO variant (e.g. YOLOv8n, YOLOv8s) from the Ultralytics
-   library.
-2. Configure `dataset.yaml` (already generated; see
-   [Configuration Reference](#7-configuration-reference)).
-3. Train the detector on the training split, validating per epoch on the
-   validation split.
-4. Evaluate detection performance on the held-out test split (precision,
-   recall, mAP@0.5, mAP@0.5:0.95).
-5. Run inference on new CT slices to obtain predicted bounding boxes and
-   confidence scores for MedSAM2 prompting.
+**Inputs:**
+- `yolo_dataset/images/{train,val,test}/` — 8-bit grayscale PNG slices (WL=40, WW=80 HU)
+- `yolo_dataset/labels/{train,val,test}/` — YOLO `.txt` label files (1:1 paired)
+- `yolo_dataset/dataset.yaml` — dataset configuration file
 
-**Status:** No training script exists yet.  No model weights exist.
-No evaluation results are available.
+**Implemented scripts:**
+- [`train_yolo26.py`](train_yolo26.py) — Fine-tunes `yolo26n.pt` with configurable epochs, batch size, image size, device (`cpu` / `cuda`), patience, and learning rate.
+- [`evaluate_yolo26.py`](evaluate_yolo26.py) — Evaluates trained checkpoints on held-out test patients; reports Precision, Recall, mAP@0.5, mAP@0.5:0.95; outputs prediction plots to `evaluation_output/predictions/`.
+- [`infer_yolo26.py`](infer_yolo26.py) — End-to-end inference on single CT slices or whole directories; outputs normalized YOLO format, pixel coordinates, confidence scores, and visual overlays to `inference_output/`.
+
+**Hardware profiling & execution status:**
+- Python 3.13.7, PyTorch 2.6.0+cu124, Ultralytics 8.4.189.
+- Verified on host hardware: 13th Gen Intel Core i5-1335U CPU (10 cores), 16 GB RAM.
+- End-to-end pipeline benchmarked: ~6.8 s/batch (batch size 16), ~7.2 minutes/epoch on CPU. For faster training, CUDA GPU execution (Google Colab / dedicated workstation) achieves ~2-3 s/epoch.
 
 ---
 
@@ -191,44 +192,52 @@ present in the repository.  No segmentation results are available.
 ```
 Code files/
 │
-├── APIS_Dataset/                   # Raw NIfTI dataset (not committed to VCS)
+├── APIS_Dataset/                             # [RAW DATASET] Untouched original NIfTI dataset
 │   ├── train_000/
-│   │   ├── train_000_ncct.nii.gz   # Non-contrast CT volume
+│   │   ├── train_000_ncct.nii.gz             # Non-contrast CT volume
 │   │   └── masks/
-│   │       └── train_000_r1_mask.nii.gz  # Ground-truth infarct mask (rater 1)
+│   │       └── train_000_r1_mask.nii.gz      # Ground-truth infarct mask (rater 1)
 │   ├── train_001/ ...
 │   └── train_059/
 │
-├── inspect_nifti.py                # [Stage 1a] Read-only dataset inspector
-├── generate_yolo_labels.py         # [Stage 1b] CT slicing + YOLO label generator
-├── validate_boxes.py               # [Stage 1c] Visual bounding-box validator
+├── phase_1_bounding_box_generation/          # [PHASE 1] Slicing, Windowing & Label Generation
+│   ├── inspect_nifti.py                      # Read-only dataset inspector
+│   ├── generate_yolo_labels.py               # CT slicing + YOLO label generator
+│   ├── validate_boxes.py                     # Visual bounding-box validator
+│   └── validation_output/                    # Visual bounding-box verification outputs
+│       ├── positive/                         # 251 annotated PNGs (green bounding boxes)
+│       ├── negative/                         # 20 sampled negative-slice PNGs
+│       └── summary.txt                       # Validation geometry report
 │
-├── yolo_dataset/                   # Generated YOLO dataset (output of Stage 1b)
-│   ├── dataset.yaml                # YOLO dataset config (paths + class name)
-│   ├── generation.log              # Full processing log
-│   ├── generation_stats.json       # Machine-readable per-patient statistics
-│   ├── images/
-│   │   ├── train/                  # 1,038 PNG slices
-│   │   ├── val/                    #   224 PNG slices
-│   │   └── test/                   #   219 PNG slices
-│   └── labels/
-│       ├── train/                  # 1,038 YOLO .txt label files
-│       ├── val/                    #   224 YOLO .txt label files
-│       └── test/                   #   219 YOLO .txt label files
+├── phase_2_yolo26/                           # [PHASE 2] YOLO26 Model Training, Eval & Inference
+│   ├── dataset/                              # Formatted YOLO26 dataset (images, labels, yaml)
+│   │   ├── dataset.yaml                      # YOLO dataset configuration
+│   │   ├── generation_stats.json             # Dataset split & lesion statistics
+│   │   ├── generation.log                    # Processing log
+│   │   ├── images/{train,val,test}/          # 1,481 8-bit grayscale PNG slices
+│   │   └── labels/{train,val,test}/          # 1,481 YOLO .txt label files
+│   ├── models/                               # Pretrained weights
+│   │   └── yolo26n.pt                        # Ultralytics YOLO26 Nano pretrained checkpoint
+│   ├── train_yolo26.py                       # YOLO26 training pipeline
+│   ├── evaluate_yolo26.py                    # Test split evaluation & metrics calculator
+│   ├── infer_yolo26.py                       # Inference script on unseen CT slices
+│   ├── runs/                                 # Training runs, logs, loss curves (detect/)
+│   ├── evaluation_output/                    # Evaluation metrics and prediction plots
+│   └── inference_output/                     # Inference outputs and visual overlays
 │
-└── validation_output/              # Generated by validate_boxes.py
-    ├── positive/                   # 251 annotated PNGs (green bounding boxes)
-    ├── negative/                   # 20 sampled negative-slice PNGs
-    └── summary.txt                 # Validation report
+└── README.md                                 # Master project documentation
 ```
 
 ### Script descriptions
 
-| Script | Purpose |
-|--------|---------|
-| [`inspect_nifti.py`](inspect_nifti.py) | Read-only.  Scans all 60 patient directories; reports volume shapes, dtypes, HU ranges, mask label values, spatial alignment, and connected-component statistics.  Run first to verify the dataset before any processing. |
-| [`generate_yolo_labels.py`](generate_yolo_labels.py) | Loads each (NCCT, mask) pair, applies brain CT windowing, extracts axial slices, computes per-component bounding boxes, converts to YOLO normalised format, and saves images + labels in the `yolo_dataset/` directory.  Also writes `dataset.yaml`, `generation.log`, and `generation_stats.json`. |
-| [`validate_boxes.py`](validate_boxes.py) | Reads the generated images and labels; overlays bounding boxes on each positive slice; checks that all boxes are within image bounds and non-degenerate; saves annotated PNGs; writes `validation_output/summary.txt`. |
+| Script | Location | Purpose |
+|--------|----------|---------|
+| [`inspect_nifti.py`](phase_1_bounding_box_generation/inspect_nifti.py) | Phase 1 | Read-only. Scans all 60 patient directories; reports volume shapes, dtypes, HU ranges, mask label values, spatial alignment, and connected-component statistics. |
+| [`generate_yolo_labels.py`](phase_1_bounding_box_generation/generate_yolo_labels.py) | Phase 1 | Loads each (NCCT, mask) pair, applies brain CT windowing, extracts axial slices, computes per-component bounding boxes, converts to YOLO normalised format, and saves images + labels directly into `phase_2_yolo26/dataset/`. |
+| [`validate_boxes.py`](phase_1_bounding_box_generation/validate_boxes.py) | Phase 1 | Reads the generated images and labels; overlays bounding boxes on each positive slice; checks that all boxes are within image bounds and non-degenerate; saves annotated PNGs and `summary.txt`. |
+| [`train_yolo26.py`](phase_2_yolo26/train_yolo26.py) | Phase 2 | Fine-tunes `models/yolo26n.pt` on `dataset/dataset.yaml`. Configurable epochs, batch size, image dimensions, device, and early stopping. Saves checkpoints and training plots to `runs/detect/`. |
+| [`evaluate_yolo26.py`](phase_2_yolo26/evaluate_yolo26.py) | Phase 2 | Evaluates trained checkpoint on held-out test split. Reports Precision, Recall, mAP@0.5, mAP@0.5:0.95 and saves annotated visual prediction plots to `evaluation_output/predictions/`. |
+| [`infer_yolo26.py`](phase_2_yolo26/infer_yolo26.py) | Phase 2 | Predicts infarct bounding boxes from unseen CT images or folders, saving YOLO labels, pixel bounding boxes, and annotated visual overlay images into `inference_output/`. |
 
 ---
 
@@ -381,77 +390,77 @@ DATASET_ROOT = r"C:\path\to\your\APIS_Dataset"
 
 ## 6. Usage
 
-All commands are run from the `Code files/` directory.
+### Phase 1 — Bounding Box Generation Workflow
 
-### Step 1 — Inspect the dataset (read-only)
-
-Run this first to verify that the dataset is intact and understand its
-properties before generating labels.
+Navigate to `phase_1_bounding_box_generation/`:
 
 ```powershell
-cd "d:\BITS\acads\4-1\SOP_AI_Enabler Stroke detector\Code files"
+cd "d:\BITS\acads\4-1\SOP_AI_Enabler Stroke detector\Code files\phase_1_bounding_box_generation"
+```
+
+#### Step 1: Inspect Dataset (Read-Only)
+Scans `APIS_Dataset` volumes, shapes, HU ranges, and connected components:
+```powershell
 python inspect_nifti.py
 ```
 
-Expected output includes: volume shapes, HU ranges, mask label values,
-spatial alignment checks, connected-component statistics, and a summary
-of any missing or mismatched files.
-
-### Step 2 — Generate YOLO labels
-
-Creates `yolo_dataset/` with images, labels, and `dataset.yaml`.
-
+#### Step 2: Generate YOLO Bounding Boxes & Slices
+Extracts windowed PNG slices and normalized bounding boxes into `phase_2_yolo26/dataset/`:
 ```powershell
 python generate_yolo_labels.py
 ```
 
-Key outputs:
-
-| File / Directory | Description |
-|------------------|-------------|
-| `yolo_dataset/images/{train,val,test}/` | 8-bit grayscale PNG CT slices |
-| `yolo_dataset/labels/{train,val,test}/` | YOLO `.txt` label files (empty for negatives) |
-| `yolo_dataset/dataset.yaml` | YOLO dataset configuration |
-| `yolo_dataset/generation.log` | Full processing log with per-patient statistics |
-| `yolo_dataset/generation_stats.json` | Machine-readable statistics (used by validator) |
-
-### Step 3 — Validate bounding boxes
-
-Overlays generated boxes on CT slices and checks geometry.
-
+#### Step 3: Validate Bounding Boxes
+Checks geometry bounds and generates visual overlay images:
 ```powershell
 python validate_boxes.py
 ```
+*Outputs stored in `phase_1_bounding_box_generation/validation_output/`.*
 
-Key outputs:
+---
 
-| File / Directory | Description |
-|------------------|-------------|
-| `validation_output/positive/` | 251 annotated PNG slices (green boxes) |
-| `validation_output/negative/` | 20 sampled negative-slice PNGs |
-| `validation_output/summary.txt` | Validation report |
+### Phase 2 — YOLO26 Training, Evaluation & Inference Workflow
 
-> **Do not proceed to YOLO training until `validate_boxes.py` reports
-> zero geometry issues.**
-
-### Step 4 — YOLO training (planned)
-
-Once a training script is created, the expected command will be similar
-to:
+Navigate to `phase_2_yolo26/`:
 
 ```powershell
-# Not yet implemented — placeholder only
-yolo train \
-  data="yolo_dataset/dataset.yaml" \
-  model=yolov8s.pt \
-  epochs=100 \
-  imgsz=640
+cd "d:\BITS\acads\4-1\SOP_AI_Enabler Stroke detector\Code files\phase_2_yolo26"
 ```
 
-### Step 5 — MedSAM2 segmentation (planned)
+#### Step 4: Fine-Tune YOLO26 on APIS Slices
+Trains `models/yolo26n.pt` using `dataset/dataset.yaml`:
+```powershell
+# CPU execution (10-25 epochs)
+python train_yolo26.py --epochs 15 --batch 16 --imgsz 512 --device cpu
 
-Requires a completed YOLO training run and MedSAM2 checkpoint.
-Not yet implemented.
+# GPU execution (e.g., CUDA device 0)
+python train_yolo26.py --epochs 50 --batch 16 --imgsz 512 --device 0
+```
+*Checkpoints and logs saved to `phase_2_yolo26/runs/detect/yolo26n_stroke/`.*
+
+#### Step 5: Evaluate on Held-Out Test Patients
+Evaluates trained checkpoint on held-out test split (Precision, Recall, mAP@0.5, mAP@0.5:0.95):
+```powershell
+python evaluate_yolo26.py --weights runs/detect/yolo26n_stroke/weights/best.pt --split test
+```
+*Metrics and prediction overlays saved to `phase_2_yolo26/evaluation_output/`.*
+
+#### Step 6: Run Inference on Unseen CT Slices
+Predicts infarct bounding boxes from single images or batches:
+```powershell
+# Inference on single test slice
+python infer_yolo26.py --source dataset/images/test/train_001_slice016.png --conf 0.25
+
+# Inference on entire directory
+python infer_yolo26.py --source dataset/images/test --conf 0.25
+```
+*Annotated visualizations, YOLO labels, and JSON detections saved to `phase_2_yolo26/inference_output/`.*
+
+---
+
+### Next Phase — MedSAM2 Segmentation (Planned)
+
+Will consume predicted bounding boxes from Phase 2 as spatial prompts to generate pixel-level segmentation masks. Not yet implemented.
 
 ---
 
@@ -488,10 +497,10 @@ Not yet implemented.
 | `VALIDATION_DIR` | `./validation_output` | Where to save annotated images and the report |
 | `N_NEG_SAMPLES` | `20` | Number of negative slices to save for inspection |
 
-### `yolo_dataset/dataset.yaml`
+### `phase_2_yolo26/dataset/dataset.yaml`
 
 ```yaml
-path: D:/BITS/acads/4-1/SOP_AI_Enabler Stroke detector/Code files/yolo_dataset
+path: D:/BITS/acads/4-1/SOP_AI_Enabler Stroke detector/Code files/phase_2_yolo26/dataset
 train: images/train
 val:   images/val
 test:  images/test
@@ -500,7 +509,7 @@ nc: 1
 names: ['infarct']
 ```
 
-> If the dataset is moved, update `path` in `dataset.yaml` to the new
+> If the repository is moved, update `path` in `dataset.yaml` to the new
 > absolute location, or regenerate it with `generate_yolo_labels.py`.
 
 ---
@@ -562,12 +571,19 @@ masks.  No segmentation results are available yet.
       but are not yet loaded or used.  ADC may be more sensitive for acute
       infarct than NCCT.
 
-### Planned / pending 🔲
+- [x] YOLO model selection and setup: Ultralytics YOLO26 Nano (`yolo26n.pt`).
+- [x] YOLO26 training script with configurable CLI arguments (`train_yolo26.py`).
+- [x] YOLO26 test evaluation script (`evaluate_yolo26.py`).
+- [x] YOLO26 inference script for new CT slices with visual overlays (`infer_yolo26.py`).
+- [x] End-to-end dry run and CPU execution profiling verified on host hardware.
 
-- [ ] YOLO model selection and training script.
-- [ ] YOLO hyperparameter tuning and data augmentation strategy.
-- [ ] YOLO detection evaluation on the test split.
-- [ ] YOLO inference script for new, unseen CT slices.
+### Implemented but awaiting full execution / GPU training ⏳
+
+- [ ] Full 25–50 epoch YOLO26 training run on dedicated GPU (CPU execution profiled at ~7.2 min/epoch; recommended on GPU for < 2-3 s/epoch).
+- [ ] Evaluation metrics from a fully converged training run.
+
+### Planned / pending (Stage 3) 🔲
+
 - [ ] MedSAM2 model integration and checkpoint configuration.
 - [ ] YOLO-box-to-SAM2-prompt conversion.
 - [ ] MedSAM2 per-slice segmentation inference.
