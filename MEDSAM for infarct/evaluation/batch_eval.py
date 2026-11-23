@@ -49,8 +49,12 @@ except ImportError:
 def find_positive_slices(split: str = "test") -> List[Dict[str, Any]]:
     """
     Find all non-empty label files in the specified split directory.
+    Prioritizes self-contained 'MEDSAM for infarct/labels/<split>' directory.
     """
-    labels_dir = os.path.join(PROJECT_ROOT, "phase_2_yolo26", "dataset", "labels", split)
+    local_dir = os.path.join(INFARCT_ROOT, "labels", split)
+    fallback_dir = os.path.join(PROJECT_ROOT, "phase_2_yolo26", "dataset", "labels", split)
+    labels_dir = local_dir if os.path.isdir(local_dir) else fallback_dir
+
     if not os.path.isdir(labels_dir):
         raise FileNotFoundError(f"Labels directory not found at: {labels_dir}")
 

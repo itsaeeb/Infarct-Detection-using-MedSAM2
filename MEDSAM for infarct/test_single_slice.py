@@ -49,7 +49,10 @@ def run_stage3_smoke_test(patient_id: str = "train_001", slice_idx: int = 16, ch
     # 1. Define Paths
     ct_nii_path = os.path.join(PROJECT_ROOT, "APIS_Dataset", patient_id, f"{patient_id}_ncct.nii.gz")
     mask_nii_path = os.path.join(PROJECT_ROOT, "APIS_Dataset", patient_id, "masks", f"{patient_id}_r1_mask.nii.gz")
-    label_path = os.path.join(PROJECT_ROOT, "phase_2_yolo26", "dataset", "labels", "test", f"{patient_id}_slice{slice_idx:03d}.txt")
+    
+    local_label = os.path.join(INFARCT_ROOT, "labels", "test", f"{patient_id}_slice{slice_idx:03d}.txt")
+    fallback_label = os.path.join(PROJECT_ROOT, "phase_2_yolo26", "dataset", "labels", "test", f"{patient_id}_slice{slice_idx:03d}.txt")
+    label_path = local_label if os.path.isfile(local_label) else fallback_label
 
     if not os.path.isfile(mask_nii_path):
         mask_nii_path = os.path.join(PROJECT_ROOT, "APIS_Dataset", patient_id, "masks", f"{patient_id}_r1_mask.nii")

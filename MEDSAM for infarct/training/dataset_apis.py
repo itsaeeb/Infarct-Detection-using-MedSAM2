@@ -78,7 +78,9 @@ class APISSliceDataset(Dataset):
         if dataset_root is None:
             dataset_root = os.path.join(PROJECT_ROOT, "APIS_Dataset")
         if labels_root is None:
-            labels_root = os.path.join(PROJECT_ROOT, "phase_2_yolo26", "dataset")
+            local_labels = os.path.join(INFARCT_ROOT, "labels")
+            fallback_labels = os.path.join(PROJECT_ROOT, "phase_2_yolo26", "dataset")
+            labels_root = local_labels if os.path.isdir(local_labels) else fallback_labels
 
         self.dataset_root = dataset_root
         self.labels_root = labels_root
@@ -92,8 +94,12 @@ class APISSliceDataset(Dataset):
                 for pid, pdata in stats.get("patients", {}).items():
                     self.patient_splits[pid] = pdata.get("split", "train")
 
-        # Discover all positive label files for the given split
-        split_labels_dir = os.path.join(labels_root, "labels", split)
+        # Discover all positive label files for the given split (handles both labels/<split> and <split>)
+        if os.path.isdir(os.path.join(labels_root, split)):
+            split_labels_dir = os.path.join(labels_root, split)
+        else:
+            split_labels_dir = os.path.join(labels_root, "labels", split)
+
         label_files = sorted(glob.glob(os.path.join(split_labels_dir, "*.txt")))
 
         self.samples = []
